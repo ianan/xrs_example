@@ -119,7 +119,8 @@ def get_tem(fl,fs):
     tmk[tmk >resptmk.max()]=resptmk.max()
 #   Work out the Emission Measure
     em=np.array(1e55*gfl/tr18_func(tmk))
-    em[em<0]=0.
+    em[em < 0]=0.
+    em[tmk <= 1.0001]=0.
     
     return tmk, em 
 # -----------------------------
