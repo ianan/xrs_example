@@ -5,17 +5,22 @@
 # and
 # https://hesperia.gsfc.nasa.gov/ssw/gen/idl/synoptic/goes/goes_get_chianti_em.pro
 # 
-# At the moment only doing GOES15 and coronal abundances
+# Has the older CHIANTI v7, GOES15, Coronal abundances only and
+# New one calculated using:
+#   https://hesperia.gsfc.nasa.gov/ssw/gen/idl/synoptic/goes/buildresponse/goes_chianti_response.pro
+# and done in Jul-2020 for CHv9, with save fits here:
+#   https://hesperia.gsfc.nasa.gov/ssw/gen/idl/atest/goes_chianti_resp_20200812.fits
 # 
 # Values returned << 1% out from sswidl versions, probably due to slight difference in the spline interpolation
 # 
 # 24-10-2021    IGH    Created
+# 25-10-2021    IGH    Updated to return newer CHIANTI v9 responses, and option of abundance and sat
 # -----------------------------
 import numpy as np
 from scipy import interpolate
-
+from astropy.io import fits
 # -----------------------------
-def get_resprat():
+def get_resprat_old():
 
 #   Returns the ratio of the GOES/XRS temperature response in the short to long channels
 #   i.e. TR_(0.5-4) / TR_(1-8)
@@ -44,9 +49,8 @@ def get_resprat():
     
     return resprat, resptmk
 # -------------------------------
-
-# -----------------------------
-def get_resps():
+# -------------------------------
+def get_resps_old():
 #   Returns the the GOES/XRS temperature response functions for long and short channels
 # 
 #   This comes from https://hesperia.gsfc.nasa.gov/ssw/gen/idl/synoptic/goes/goes_get_chianti_em.pro
@@ -71,31 +75,108 @@ def get_resps():
         6.56e+01,6.69e+01,6.81e+01,6.92e+01,7.03e+01,7.12e+01,7.21e+01,7.30e+01,7.37e+01,\
         7.44e+01,7.50e+01,7.55e+01])
     
-    resprat, resptmk = get_resprat()
+    resprat, resptmk = get_resprat_old()
 #   Calculate short channel response from long channel and ratio of short/long, so short = rat * long
     resps[:,1]=resprat * resps[:,0]
    
     return resps, resptmk
 # -----------------------------
 # -----------------------------
-def get_tem(fl,fs):
+def get_resprat(sat=15,cor_not_pho=True):
+
+#   Version calculated using:
+#   https://hesperia.gsfc.nasa.gov/ssw/gen/idl/synoptic/goes/buildresponse/goes_chianti_response.pro
+#   and done in Jul-2020 for CHv9, with save fits here:
+#   https://hesperia.gsfc.nasa.gov/ssw/gen/idl/atest/goes_chianti_resp_20200812.fits
+#
+#   Input:
+#       sat - Which GOES satellite to use? (default 15)
+#       cor_not_pho: - Use coronal not photospheric abundances (default True)
+#   Output:
+#       resprat - Ratio of TR_(0.5-4) / TR_(1-8)
+#       resptmk - Temp binning of TR ratio in MK
+# 
+    
+    rfile='goes_chianti_resp_20200812.fits'
+    hdulist = fits.open(rfile)
+    respdat=hdulist[1].data
+    hdulist.close()
+    
+    resptmk=np.array(respdat["TEMP_MK"][sat-1])
+    
+    if cor_not_pho:
+        abdun="COR"
+    else:
+        abdun="PHO"   
+    resprat=np.empty((101))
+    resprat=respdat["FSHORT_"+abdun][sat-1]/respdat["FLONG_"+abdun][sat-1]
+    
+    return resprat, resptmk
+# -------------------------------
+# -----------------------------
+def get_resps(sat=15,cor_not_pho=True):
+#   Returns the the GOES/XRS temperature response functions for long and short channels
+# 
+#   Version calculated using:
+#   https://hesperia.gsfc.nasa.gov/ssw/gen/idl/synoptic/goes/buildresponse/goes_chianti_response.pro
+#   and done in Jul-2020 for CHv9, with save fits here:
+#   https://hesperia.gsfc.nasa.gov/ssw/gen/idl/atest/goes_chianti_resp_20200812.fits
+# 
+#   Input:
+#       sat - Which GOES satellite to use? (default 15)
+#       cor_not_pho: - Use coronal not photospheric abundances (default True)
+#   Output:
+#       resps[:,0] - Temp resp for 1-8\AA in units of 10^{-55} W m^{-2} cm^{3}
+#       resps[:,1] - Temp resp for 0.5-4\AA in units of 10^{-55} W m^{-2} cm^{3}
+#       resptmk    - Temp binning of TR ratio in MK
+
+    rfile='goes_chianti_resp_20200812.fits'
+    hdulist = fits.open(rfile)
+    respdat=hdulist[1].data
+    hdulist.close()
+
+    resptmk=np.array(respdat["TEMP_MK"][sat-1])
+    
+    if cor_not_pho:
+        abdun="COR"
+    else:
+        abdun="PHO"  
+    resps=np.empty((101,2))
+    resps[:,0]=respdat["FLONG_"+abdun][sat-1]
+    resps[:,1]=respdat["FSHORT_"+abdun][sat-1]
+   
+    return resps, resptmk
+# -----------------------------
+# -----------------------------
+def get_tem(fl,fs,sat=15,cor_not_pho=True):
     
 #   Returns the T and EM for ratio of fluxes in short/long of GOES/XRS channels
 # 
 #   This comes from https://hesperia.gsfc.nasa.gov/ssw/gen/idl/synoptic/goes/goes_tem_calc.pro
-#   At the moment just for GOES15 and coronal -> add options to SATnum and coronal/photospheric in future?
+#   This version uses the responses calculated via:
+#   https://hesperia.gsfc.nasa.gov/ssw/gen/idl/synoptic/goes/buildresponse/goes_chianti_response.pro
+#   and done in Jul-2020 for CHv9, with save fits here:
+#   https://hesperia.gsfc.nasa.gov/ssw/gen/idl/atest/goes_chianti_resp_20200812.fits
 #
 #   Input:
 #       fl - GOES/XRS flux in long channel, 1-8\AA no scaling, Wm^{-2}
 #       fs - GOES/XRS flux in short channel,0.5-4\AA scaling, Wm^{-2}
 #            Single number, or array
+#       sat - Which GOES satellite to use? (default 15)
+#       cor_not_pho: - Use coronal not photospheric abundances (default True)
 #   Output:
 #       TMK - Temperature in MK
 #       EM  - Emission Measure in cm^{-3}
 # 
+#   NOTE -  If GOES16 some extra scaling is needed, see
+#           https://hesperia.gsfc.nasa.gov/ssw/gen/idl/atest/goes_chianti_use_resp_table.pro
+# 
 
-# First get the resps ratio
-    resprat, resptmk = get_resprat()
+#   Get the TR to work out the EM
+    resps, resptmk=get_resps(sat,cor_not_pho)
+
+#   Then calculate the resps ratio
+    resprat=resps[:,1]/resps[:,0]
     
 #   Use scipy cubic spline interpolation
     rat_func=interpolate.interp1d(resprat, resptmk,kind='cubic')
@@ -110,7 +191,7 @@ def get_tem(fl,fs):
     tmk=np.array(rat_func(grat))
     
 #   Need the actual TR to work out the EM
-    resps, resptmk=get_resps()
+    resps, resptmk=get_resps(sat,cor_not_pho)
 #   Use scipy cubic spline interpolation
     tr18_func=interpolate.interp1d(resptmk,resps[:,0],kind='cubic')
 #   Can't use TMK values at/outside the range, so
