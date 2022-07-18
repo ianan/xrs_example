@@ -19,6 +19,7 @@
 # 25-10-2021    IGH    Updated to return newer CHIANTI v9 responses, and option of abundance and sat
 # 23-05-2022    IGH    Updated with new response (CHIANTI v10 and G13/15 short fix)
 #                      Default loads new response, but old_ver=True gives 20200812 version
+# 18-07-2022    IGH    Fixed get_tem() bug that loaded default response only for the EM calc
 # -----------------------------
 import numpy as np
 from scipy import interpolate
@@ -106,8 +107,6 @@ def get_tem(fl,fs,sat=15,cor_not_pho=True,old_ver=False):
 #   Work out the temperature 
     tmk=np.array(rat_func(grat))
     
-#   Need the actual TR to work out the EM
-    resps, resptmk=get_resps(sat,cor_not_pho)
 #   Use scipy cubic spline interpolation
     tr18_func=interpolate.interp1d(resptmk,resps[:,0],kind='cubic')
 #   Can't use TMK values at/outside the range, so
