@@ -20,6 +20,7 @@
 # 23-05-2022    IGH    Updated with new response (CHIANTI v10 and G13/15 short fix)
 #                      Default loads new response, but old_ver=True gives 20200812 version
 # 18-07-2022    IGH    Fixed get_tem() bug that loaded default response only for the EM calc
+# 03-04-2025    IGH    Added get_fluxes() - flux calc for given T, EM
 # -----------------------------
 import numpy as np
 from scipy import interpolate
@@ -156,4 +157,47 @@ def get_resprat(sat=15,cor_not_pho=True,old_ver=False):
     resprat=respdat["FSHORT_"+abdun][sat-1]/respdat["FLONG_"+abdun][sat-1]
     
     return resprat, resptmk
+# -------------------------------
+# -----------------------------
+def get_fluxes(TMK, EM, sat=15,cor_not_pho=True,old_ver=False):
+
+#   Returns the flux for a given T and EM, can specify satellite, abunances, version etc
+# 
+#   Input :
+#       TMK - Temperature in MK
+#       EM - Emission measure in cm^-3
+#       sat - Which GOES satellite to use? (default 15)
+#       cor_not_pho: - Use coronal not photospheric abundances (default True)
+#       old_ver - Use previous responses of 20200812 + wrong G13/15: (default False) - just for testing
+#   Output:
+#       flong - Flux in 1-8\AA W/m^2
+#       fshort - Flux in 0.5-4\AA W/m^2
+# 
+    
+    if old_ver:
+        rfile='goes_chianti_resp_20200812.fits'
+    else:
+        rfile='goes_chianti_response_latest.fits'
+    hdulist = fits.open(rfile)
+    respdat=hdulist[1].data
+    hdulist.close()
+    
+    resptmk=np.array(respdat["TEMP_MK"][sat-1])
+    
+    if cor_not_pho:
+        abdun="COR"
+    else:
+        abdun="PHO"   
+    resps=np.empty((101,2))
+    resplong=respdat["FLONG_"+abdun][sat-1]
+    respshort=respdat["FSHORT_"+abdun][sat-1]
+
+    resplong_int=interpolate.interp1d(resplong, resptmk,kind='cubic')
+    respshort_int=interpolate.interp1d(respshort, resptmk,kind='cubic')
+
+    # Mind response has a factor of 1e-55 in there
+    flong=EM*resplong_int(TMK)*1e-55
+    fshort=EM*respshort_int(TMK)*1e-55
+    
+    return flong, fshort
 # -------------------------------
