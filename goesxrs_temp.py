@@ -21,6 +21,7 @@
 #                      Default loads new response, but old_ver=True gives 20200812 version
 # 18-07-2022    IGH    Fixed get_tem() bug that loaded default response only for the EM calc
 # 03-04-2025    IGH    Added get_fluxes() - flux calc for given T, EM
+# 14-10-2025    IGH    Needed some dtype=np.float64 to make the EM calc give non-Inf values!?!
 # -----------------------------
 import numpy as np
 from scipy import interpolate
@@ -100,13 +101,14 @@ def get_tem(fl,fs,sat=15,cor_not_pho=True,old_ver=False):
     rat_func=interpolate.interp1d(resprat, resptmk,kind='cubic')
     
 #   Ratio can't be outside of values of TR ratio, so
-    gfs=np.array(fs)
-    gfl=np.array(fl)
+    gfs=np.array(fs,dtype=np.float64)
+    gfl=np.array(fl,dtype=np.float64)
+
     grat=np.array(gfs/gfl)
     grat[grat < resprat.min()]=resprat.min()
     grat[grat > resprat.max()]=resprat.max()
 #   Work out the temperature 
-    tmk=np.array(rat_func(grat))
+    tmk=np.array(rat_func(grat),dtype=np.float64)
     
 #   Use scipy cubic spline interpolation
     tr18_func=interpolate.interp1d(resptmk,resps[:,0],kind='cubic')
